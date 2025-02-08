@@ -1,0 +1,12 @@
+# ignore ipynb checkpoints
+.ipynb_checkpoints/
+
+# Ignore log files
+*.log
+
+# Ignore macOS system files
+.DS_Store
+
+# Ignore environment files
+.env
+
