@@ -18,7 +18,7 @@ def iterate_traffic(producer, csv_path, speed_factor):
         print(f'{row["plate"]}: {row["speed"]}')
         row_dict = row.to_dict()
         row_dict['timestamp'] = str(row_dict['timestamp'])
-        producer.send('topic-1', value=row_dict)
+        producer.send('traffic-events', value=row_dict)
         time.sleep(delay)
         prev_time = current_time
         producer.flush()
@@ -42,11 +42,11 @@ def create_producer(bootstrap_servers, retries=10, delay=5):
 
 if __name__ == "__main__":
     producer = create_producer(
-        bootstrap_servers='broker-1:29092'
+        bootstrap_servers='broker-1:9092'
                            #'broker-2:9093','broker-3:9094'
                            )
     iterate_traffic(producer=producer, 
                     csv_path='./csv_files/multi_road_traffic.csv', 
-                    speed_factor=1)
+                    speed_factor=0.5)
 
 
