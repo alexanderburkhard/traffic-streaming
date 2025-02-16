@@ -45,6 +45,7 @@ services:
     container_name: data-producer
     depends_on:
        - broker-1
+       - spark
     volumes:
       - ./data-producer/csv_files:/csv_files
 
@@ -60,4 +61,20 @@ services:
     # volumes:
     #   - .:/app
     #command: ["spark-submit", "--master", "local[*]", "/app/spark-streaming-app.py"]
+
+  # postgresql:
+  #   image: postgres:15
+  #   container_name: postgres_db
+  #   restart: always
+  #   environment:
+  #     POSTGRES_USER: sparkuser
+  #     POSTGRES_PASSWORD: sparkpass
+  #     POSTGRES_DB: traffic_db
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - pg_data:/var/lib/postgresql/data
+
+volumes:
+  pg_data:
 

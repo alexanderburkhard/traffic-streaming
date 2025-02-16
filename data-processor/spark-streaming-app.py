@@ -1,9 +1,10 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import from_json, col, window, avg
+from pyspark.sql.functions import from_json, col, window, avg, max as max_
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType, DoubleType, TimestampType
 
 # Initialize SparkSession
-spark = SparkSession.builder \
+spark = SparkSession \
+    .builder \
     .appName("StreamingApp") \
     .getOrCreate()
 
@@ -25,21 +26,28 @@ kafka_df = spark \
     .load()
 
 # Parse the value from Kafka message
-parsed_df = kafka_df.selectExpr("CAST(value AS STRING)") \
+parsed_df = kafka_df \
+    .selectExpr("CAST(value AS STRING)") \
     .select(from_json(col("value"), schema).alias("data")) \
     .select("data.*")
 
-# Calculate the rolling average speed over a 5-minute window
-windowed_df = parsed_df \
-    .withWatermark("timestamp", "5 minutes") \
-    .groupBy(window(col("timestamp"), "5 minutes"), col("highway_id")) \
+# Apply watermark on the timestamp column
+parsed_df = parsed_df.withWatermark("timestamp", "10 minutes")
+
+# Define window duration and slide interval
+window_duration = "2 minutes"
+slide_duration = "30 seconds"
+
+# Compute 5-minute moving average for speed per highway_id
+moving_avg_df = parsed_df \
+    .groupBy(window(col("timestamp"), window_duration, slide_duration), col("highway_id")) \
     .agg(avg("speed").alias("avg_speed"))
 
-# Write the results to the console
-query = windowed_df.writeStream \
+# Stream the moving average result to the console
+query = moving_avg_df.writeStream \
     .outputMode("update") \
     .format("console") \
+    .option("truncate", "false") \
     .start()
 
-# Await termination
 query.awaitTermination()
