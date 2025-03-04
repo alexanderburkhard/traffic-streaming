@@ -20,23 +20,26 @@ services:
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@broker-1:9093
       KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
 
-  # akhq:
-  #   image: tchiotludo/akhq
-  #   container_name: akhq
-  #   ports:
-  #     - "8080:8080"
+  # spark:
+  #   build: 
+  #     context: ./data-processor
+  #     dockerfile: ./Dockerfile
   #   environment:
-  #     AKHQ_CONFIGURATION: |
-  #       akhq:
-  #         server:
-  #           access-log: true
-  #         connections:
-  #           kafka-cluster:
-  #             properties:
-  #               bootstrap.servers: "broker-1:9092"
-  #   depends_on:
-  #     - broker-1
+  #     - SPARK_MASTER=spark://spark:7077
+  #     - SPARK_LOCAL_IP=spark
+  #   ports:
+  #     - "4040:4040"
 
+  quix-processor:
+    build:
+      context: ./quix-processor
+      dockerfile: ./Dockerfile
+    container_name: quix-processor
+    depends_on:
+      - broker-1
+    environment:
+      - KAFKA_BROKER=broker-1:9092
+    command: python main.py
 
   data-producer:
     build: 
@@ -45,36 +48,24 @@ services:
     container_name: data-producer
     depends_on:
        - broker-1
-       - spark
+       - quix-processor
+       - postgresql
     volumes:
       - ./data-producer/csv_files:/csv_files
 
-  spark:
-    build: 
-      context: ./data-processor
-      dockerfile: ./Dockerfile
+  postgresql:
+    image: postgres:15
+    container_name: postgres_db
+    restart: always
     environment:
-      - SPARK_MASTER=spark://spark:7077
-      - SPARK_LOCAL_IP=spark
+      POSTGRES_USER: sparkuser
+      POSTGRES_PASSWORD: sparkpass
+      POSTGRES_DB: traffic_db
     ports:
-      - "4040:4040"
-    # volumes:
-    #   - .:/app
-    #command: ["spark-submit", "--master", "local[*]", "/app/spark-streaming-app.py"]
-
-  # postgresql:
-  #   image: postgres:15
-  #   container_name: postgres_db
-  #   restart: always
-  #   environment:
-  #     POSTGRES_USER: sparkuser
-  #     POSTGRES_PASSWORD: sparkpass
-  #     POSTGRES_DB: traffic_db
-  #   ports:
-  #     - "5432:5432"
-  #   volumes:
-  #     - pg_data:/var/lib/postgresql/data
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./postgresql:/docker-entrypoint-initdb.d/ # every .sql file in this folder gets executed upon start
 
 volumes:
   pg_data:
-
