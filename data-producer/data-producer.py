@@ -18,7 +18,9 @@ def iterate_traffic(producer, csv_path, speed_factor):
         print(f'Highway {row["highway_id"]}: {row["plate"]}: {row["speed"]}')
         row_dict = row.to_dict()
         row_dict['timestamp'] = str(row_dict['timestamp'])
-        producer.send('traffic-events', value=row_dict)
+        producer.send('traffic-events', 
+                      key=str(row_dict["highway_id"]).encode('utf-8'), 
+                      value=row_dict)
         time.sleep(delay)
         prev_time = current_time
         producer.flush()

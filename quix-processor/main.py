@@ -1,5 +1,5 @@
 import os
-import time
+from datetime import timedelta
 from quixstreams import Application, State
 from quixstreams.models.serializers import JSONSerializer, JSONDeserializer
 import pandas as pd
@@ -15,9 +15,35 @@ input_topic = app.topic(name="traffic-events", value_deserializer="json")
 
 sdf = app.dataframe(input_topic)
 
-sdf = sdf[["timestamp", "highway_id", "speed"]]
+#sdf = sdf[["timestamp", "highway_id", "plate", "speed", "ev"]]
 
-sdf.update(lambda row: print(row))
+#sdf = sdf.group_by('highway_id')
+
+sdf = (
+    # Extract "speed" value from the message
+    sdf.apply(lambda value: value["speed"])
+
+    # You can also pass duration_ms and step_ms as integers of milliseconds
+    .sliding_window(duration_ms=timedelta(minutes=5))
+
+    # Specify the "mean" aggregate function
+    .mean()
+
+    # Emit updates for each incoming message
+    .final()
+
+    # Unwrap the aggregated result to match the expected output format
+    .apply(
+        lambda result: {
+            "avg_speed": result["value"],
+            "window_start_ms": result["start"],
+            "window_end_ms": result["end"],
+        }
+    )
+)
+
+sdf.print_table(size=100)
+#sdf.update(lambda row: print(row))
 
 # Run the streaming application
 if __name__ == "__main__":
