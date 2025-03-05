@@ -1,8 +1,7 @@
 import os
 from datetime import timedelta
-from quixstreams import Application, State
-from quixstreams.models.serializers import JSONSerializer, JSONDeserializer
-import pandas as pd
+from quixstreams import Application
+from quixstreams.sinks.community.postgresql import PostgreSQLSink
 
 # Set up the Quix Application
 app = Application(
@@ -42,49 +41,19 @@ sdf = (
     )
 )
 
-sdf.print_table(size=100)
-#sdf.update(lambda row: print(row))
+postgres_sink = PostgreSQLSink(
+    host="postgresql",
+    port=5432,
+    dbname="traffic_db",
+    user="pguser",
+    password="pgpass",
+    table_name="traffic_averages",
+    schema_auto_update=True
+)
+
+sdf.sink(postgres_sink)
 
 # Run the streaming application
 if __name__ == "__main__":
     app.run()
 
-# output_topic = app.topic(
-#     "highway-speed-average", value_serializer=JSONSerializer()
-# )
-
-# def calculate_average_speed(state: State, value):
-
-#     highway_id = value["highway_id"]
-#     speed = value["speed"]
-#     timestamp = pd.to_datetime(value["timestamp"])
-#     five_minutes_ago = timestamp - pd.Timedelta(minutes=5)
-
-#     if highway_id not in state:
-#         state[highway_id] = pd.DataFrame(columns=['timestamp', 'speed'])
-
-#     df = state[highway_id]
-#     df = pd.concat([df, pd.DataFrame([{'timestamp': timestamp, 'speed': speed}])], ignore_index=True)
-#     df['timestamp'] = pd.to_datetime(df['timestamp'])
-
-#     df = df[df['timestamp'] >= five_minutes_ago]
-
-#     if len(df) > 0:
-#         average_speed = df["speed"].mean()
-#     else:
-#         average_speed = 0
-
-#     state[highway_id] = df
-#     return {"highway_id": highway_id, "average_speed": average_speed, 'timestamp':str(timestamp)}
-
-
-# sdf = app.dataframe(input_topic)
-
-# # apply the calculation to the dataframe
-# calculated_df = sdf.apply(calculate_average_speed, stateful=True)
-
-# # push it to the output topic
-# calculated_df.to_topic(output_topic)
-
-# if __name__ == "__main__":
-#     app.run(commit_every=1)
