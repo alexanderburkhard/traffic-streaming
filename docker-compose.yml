@@ -54,7 +54,6 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - pg_data:/var/lib/postgresql/data
       - ./postgresql:/docker-entrypoint-initdb.d/ # every .sql file in this folder gets executed upon start
 
   pgadmin:
@@ -70,6 +69,15 @@ services:
       volumes:
         - pgadmin_data:/var/lib/pgadmin
 
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./dashboard:/var/lib/grafana
+    depends_on:
+      - postgresql
+
 volumes:
-  pg_data:
   pgadmin_data:

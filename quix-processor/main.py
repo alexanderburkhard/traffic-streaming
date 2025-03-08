@@ -1,7 +1,9 @@
 import os
-from datetime import timedelta
+from datetime import timedelta, datetime
 from quixstreams import Application
 from quixstreams.sinks.community.postgresql import PostgreSQLSink
+from quixstreams.models import TimestampType
+from typing import Any, Optional, List, Tuple
 
 # Set up the Quix Application
 app = Application(
@@ -10,7 +12,25 @@ app = Application(
     auto_create_topics=True,
 )
 
-input_topic = app.topic(name="traffic-events", value_deserializer="json")
+def custom_ts_extractor(
+    value: Any,
+    headers: Optional[List[Tuple[str, bytes]]],
+    timestamp: float,
+    timestamp_type: TimestampType,
+) -> int:
+    
+    try:
+        dt_obj = datetime.strptime(value['timestamp'], '%Y-%m-%d %H:%M:%S.%f')
+    except:
+        dt_obj = datetime.strptime(value['timestamp'], '%Y-%m-%d %H:%M:%S')
+    milliseconds = int(dt_obj.timestamp() * 1000)
+    value['timestamp'] = milliseconds
+    return value["timestamp"]
+
+
+input_topic = app.topic(name="traffic-events",
+                        value_deserializer="json",
+                        timestamp_extractor=custom_ts_extractor)
 
 sdf = app.dataframe(input_topic)
 
@@ -18,28 +38,22 @@ sdf = app.dataframe(input_topic)
 
 #sdf = sdf.group_by('highway_id')
 
+sdf['new_keys'] = sdf.apply(lambda value, key, timestamp, headers: key, metadata=True)
+
 sdf = (
-    # Extract "speed" value from the message
     sdf.apply(lambda value: value["speed"])
-
-    # You can also pass duration_ms and step_ms as integers of milliseconds
-    .sliding_window(duration_ms=timedelta(minutes=5))
-
-    # Specify the "mean" aggregate function
+    .sliding_window(duration_ms=timedelta(minutes=30))
     .mean()
-
-    # Emit updates for each incoming message
     .final()
-
-    # Unwrap the aggregated result to match the expected output format
     .apply(
         lambda result: {
             "avg_speed": result["value"],
-            "window_start_ms": result["start"],
-            "window_end_ms": result["end"],
-        }
-    )
+            "window_start_ms": datetime.fromtimestamp(result["start"]/1000),
+            "window_end_ms": datetime.fromtimestamp(result["end"]/1000)
+        })
 )
+
+sdf['new_keys'] = sdf.apply(lambda value, key, timestamp, headers: str(key)[2:3], metadata=True)
 
 postgres_sink = PostgreSQLSink(
     host="postgresql",
@@ -51,9 +65,9 @@ postgres_sink = PostgreSQLSink(
     schema_auto_update=True
 )
 
+#sdf.update(lambda row: print(row))
 sdf.sink(postgres_sink)
 
 # Run the streaming application
 if __name__ == "__main__":
     app.run()
-
