@@ -34,9 +34,9 @@ input_topic = app.topic(name="traffic-events",
 
 sdf = app.dataframe(input_topic)
 
-#sdf = sdf[["timestamp", "highway_id", "plate", "speed", "ev"]]
+sdf_detailed = sdf
 
-#sdf = sdf.group_by('highway_id')
+sdf_detailed['timestamp'] = sdf_detailed.apply(lambda value: datetime.fromtimestamp(value['timestamp']/1000))
 
 sdf['new_keys'] = sdf.apply(lambda value, key, timestamp, headers: key, metadata=True)
 
@@ -55,7 +55,7 @@ sdf = (
 
 sdf['new_keys'] = sdf.apply(lambda value, key, timestamp, headers: str(key)[2:3], metadata=True)
 
-postgres_sink = PostgreSQLSink(
+postgres_sink_agg = PostgreSQLSink(
     host="postgresql",
     port=5432,
     dbname="traffic_db",
@@ -65,8 +65,18 @@ postgres_sink = PostgreSQLSink(
     schema_auto_update=True
 )
 
-#sdf.update(lambda row: print(row))
-sdf.sink(postgres_sink)
+postgres_sink_detailed = PostgreSQLSink(
+    host="postgresql",
+    port=5432,
+    dbname="traffic_db",
+    user="pguser",
+    password="pgpass",
+    table_name="traffic_detailed",
+    schema_auto_update=True
+)
+
+sdf.sink(postgres_sink_agg)
+sdf_detailed[['timestamp', 'highway_id', 'plate', 'speed', 'ev']].sink(postgres_sink_detailed)
 
 # Run the streaming application
 if __name__ == "__main__":
